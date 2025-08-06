@@ -29,6 +29,14 @@ jobs:
           docker build -t ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} .
         continue-on-error: false
 
+      - name: Verify Docker image
+        run: |
+          docker images
+          if [ -z "$(docker images -q ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }})" ]; then
+            echo "Error: Image ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} not found"
+            exit 1
+          fi
+
       - name: Tag Docker image
         run: |
           docker tag ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
@@ -37,4 +45,4 @@ jobs:
       - name: Push Docker image to Amazon ECR
         run: |
           docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
-          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/${
