@@ -3,46 +3,41 @@ name: Build and Push Docker Image to ECR
 on:
   push:
     branches:
-      - main
+      - main  # Trigger on push to main branch
 
 jobs:
   build-and-push:
+    name: Build and Push to Amazon ECR
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Extract short SHA
+        id: vars
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} .
-        continue-on-error: false
+          docker build -t ${{ secrets.ECR_REPOSITORY }}:${SHORT_SHA} .
 
-      - name: Verify Docker image
+      - name: Tag Docker image with ECR URI
         run: |
-          docker images
-          if [ -z "$(docker images -q ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }})" ]; then
-            echo "Error: Image ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} not found"
-            exit 1
-          fi
+          docker tag ${{ secrets.ECR_REPOSITORY }}:${SHORT_SHA} ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${SHORT_SHA}
 
-      - name: Run Docker container in detached mode
+      - name: Push Docker image to ECR
         run: |
-          docker run -d ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${SHORT_SHA}
 
-      - name: Post Configure AWS credentials
-        run: echo "AWS credentials post-configuration"
-
-      - name: Post Checkout code
-        run: echo "Post checkout complete"
